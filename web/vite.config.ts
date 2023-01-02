@@ -1,3 +1,5 @@
+import { resolve } from "path";
+
 import react from "@vitejs/plugin-react";
 import { defineConfig, loadEnv } from "vite";
 import eslintPlugin from "vite-plugin-eslint";
@@ -41,6 +43,10 @@ export default defineConfig(({ mode }) => {
             emptyOutDir: true,
             assetsDir: "static",
             rollupOptions: {
+                input: {
+                    main: resolve(__dirname, "index.html"),
+                    oidc_form_post: resolve(__dirname, "oidc_form_post.html"),
+                },
                 output: {
                     entryFileNames: `static/js/[name].[hash].js`,
                     chunkFileNames: `static/js/[name].[hash].js`,

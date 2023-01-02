@@ -29,14 +29,32 @@ func NewRequestLogger(ctx *AutheliaCtx) *logrus.Entry {
 
 // NewAutheliaCtx instantiate an AutheliaCtx out of a RequestCtx.
 func NewAutheliaCtx(requestCTX *fasthttp.RequestCtx, configuration schema.Configuration, providers Providers) (ctx *AutheliaCtx) {
-	ctx = new(AutheliaCtx)
-	ctx.RequestCtx = requestCTX
-	ctx.Providers = providers
-	ctx.Configuration = configuration
+	ctx = &AutheliaCtx{
+		RequestCtx:    requestCTX,
+		Providers:     providers,
+		Configuration: configuration,
+		Clock:         utils.RealClock{},
+		values:        make(map[any]any),
+	}
 	ctx.Logger = NewRequestLogger(ctx)
-	ctx.Clock = utils.RealClock{}
 
 	return ctx
+}
+
+// WithValue adds a new value associated with key and returns `*AutheliaCtx`.
+func AutheliaCtxWithValue(parent *AutheliaCtx, key, val any) *AutheliaCtx {
+	parent.values[key] = val
+	return parent
+}
+
+// Value returns the value associated with this key, if not found calls, parent function of `vala/fasthttp` package.
+// Since `AutheliaCtx` is used as the `context.Context` interface inside of `oidc/provider` package, this method tries to repeat the behavior of `context.Contex.Value()`.
+func (ctx *AutheliaCtx) Value(key any) any {
+	if val, ok := ctx.values[key]; ok {
+		return val
+	}
+
+	return ctx.RequestCtx.Value(key)
 }
 
 // AvailableSecondFactorMethods returns the available 2FA methods.
