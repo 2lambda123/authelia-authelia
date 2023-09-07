@@ -62,8 +62,8 @@ server:
 {{< ref-common ref="address" description="Common Syntax: Address" text="This option uses a common syntax. " >}}
 
 Configures the listener address for the Main HTTP Server. The address itself is a listener and the scheme must either be
-the `unix` scheme or one of the `tcp` schemes. It can configure the host, port, and path the listener responds to. If
-the path is configured to anything other than `/` Authelia will handle requests for both `/` and the configured path.
+the `unix` scheme, one of the `tcp` schemes or the `fd` scheme. It can configure the host, port, and path the listener responds to. If
+the path is configured to anything other than `/` Authelia will handle requests for both `/` and the configured path. For the `fd` scheme, the port number will be used as file descriptor.
 
 __Examples:__
 
@@ -80,6 +80,12 @@ server:
 ```yaml
 server:
   address: unix:///var/run/authelia.sock
+```
+
+```yaml
+server:
+  address: fd://:3
+# When running "systemd-socket-activate -l 9091 go run ./cmd/authelia", the connections to port 9091 will be forwaded to file descriptor 3.
 ```
 
 ### asset_path
