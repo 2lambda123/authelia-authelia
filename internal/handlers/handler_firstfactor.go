@@ -81,7 +81,7 @@ func FirstFactorPOST(delayFunc middlewares.TimingAttackDelayFunc) middlewares.Re
 
 		userSession, err := provider.GetSession(ctx.RequestCtx)
 		if err != nil {
-			ctx.Logger.Errorf("%s", err)
+			ctx.Logger.WithError(err).Errorf("Error occurred attempting to load session.")
 
 			respondUnauthorized(ctx, messageAuthenticationFailed)
 
@@ -228,7 +228,7 @@ func FirstFactorReauthenticatePOST(delayFunc middlewares.TimingAttackDelayFunc) 
 
 		userSession, err := provider.GetSession(ctx.RequestCtx)
 		if err != nil {
-			ctx.Logger.Errorf("%s", err)
+			ctx.Logger.WithError(err).Errorf("Error occurred attempting to load session.")
 
 			respondUnauthorized(ctx, messageAuthenticationFailed)
 

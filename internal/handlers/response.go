@@ -3,7 +3,6 @@ package handlers
 import (
 	"fmt"
 	"net/url"
-	"path"
 	"time"
 
 	"github.com/google/uuid"
@@ -211,26 +210,58 @@ func handleOIDCWorkflowResponseWithID(ctx *middlewares.AutheliaCtx, userSession 
 		return
 	}
 
-	level := client.GetAuthorizationPolicyRequiredLevel(authorization.Subject{Username: userSession.Username, Groups: userSession.Groups, IP: ctx.RemoteIP()})
-
-	switch {
-	case authorization.IsAuthLevelSufficient(userSession.AuthenticationLevel, level), level == authorization.Denied:
-		var (
-			targetURL *url.URL
-			form      url.Values
-		)
-
-		targetURL = ctx.RootURL()
-
-		if form, err = consent.GetForm(); err != nil {
-			ctx.Error(fmt.Errorf("unable to get authorization form values from consent session with challenge id '%s': %w", consent.ChallengeID, err), messageAuthenticationFailed)
+	if !consent.Subject.Valid {
+		if consent.Subject.UUID, err = ctx.Providers.OpenIDConnect.GetSubject(ctx, client.GetSectorIdentifierURI(), userSession.Username); err != nil {
+			ctx.Error(fmt.Errorf("unable to determine consent subject for client with id '%s' with consent challenge id '%s': %w", client.GetID(), consent.ChallengeID, err), messageAuthenticationFailed)
 
 			return
 		}
 
+		consent.Subject.Valid = true
+
+		if err = ctx.Providers.StorageProvider.SaveOAuth2ConsentSessionSubject(ctx, consent); err != nil {
+			ctx.Error(fmt.Errorf("unable to update consent subject for client with id '%s' with consent challenge id '%s': %w", client.GetID(), consent.ChallengeID, err), messageAuthenticationFailed)
+
+			return
+		}
+	}
+
+	var (
+		targetURL *url.URL
+		form      url.Values
+	)
+
+	targetURL = ctx.RootURL()
+
+	if form, err = consent.GetForm(); err != nil {
+		ctx.Error(fmt.Errorf("unable to get authorization form values from consent session with challenge id '%s': %w", consent.ChallengeID, err), messageAuthenticationFailed)
+
+		return
+	}
+
+	if oidc.AuthorizeRequestFormRequiresLogin(form, consent.RequestedAt, userSession.LastAuthenticatedTime()) {
+		query := targetURL.Query()
+
+		query.Set(queryArgWorkflow, workflowOpenIDConnect)
+		query.Set(queryArgWorkflowID, workflowID.String())
+
+		targetURL.JoinPath(oidc.EndpointPathConsentLogin)
+		targetURL.RawQuery = query.Encode()
+
+		if err = ctx.SetJSONBody(redirectResponse{Redirect: targetURL.String()}); err != nil {
+			ctx.Logger.Errorf("Unable to set default redirection URL in body: %s", err)
+		}
+
+		return
+	}
+
+	level := client.GetAuthorizationPolicyRequiredLevel(authorization.Subject{Username: userSession.Username, Groups: userSession.Groups, IP: ctx.RemoteIP()})
+
+	switch {
+	case authorization.IsAuthLevelSufficient(userSession.AuthenticationLevel, level), level == authorization.Denied:
 		form.Set(queryArgConsentID, workflowID.String())
 
-		targetURL.Path = path.Join(targetURL.Path, oidc.EndpointPathAuthorization)
+		targetURL.JoinPath(oidc.EndpointPathAuthorization)
 		targetURL.RawQuery = form.Encode()
 
 		if err = ctx.SetJSONBody(redirectResponse{Redirect: targetURL.String()}); err != nil {
